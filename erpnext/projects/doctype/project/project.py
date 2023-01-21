@@ -6,8 +6,7 @@ import frappe
 from frappe import _
 from six import iteritems
 from email_reply_parser import EmailReplyParser
-from frappe.utils import (flt, getdate, get_url, now,
-	nowtime, get_time, today, get_datetime, add_days)
+from frappe.utils import flt, date_diff, getdate, get_url, now,nowtime, get_time, today, get_datetime, add_days
 from erpnext.controllers.queries import get_filters_cond
 from frappe.desk.reportview import get_match_cond
 from erpnext.hr.doctype.daily_work_summary.daily_work_summary import get_users_email
@@ -52,19 +51,52 @@ class Project(Document):
 
 			if not self.project_type:
 				self.project_type = template.project_type
-
+			if self.project_serial_number:
+				prefix = self.project_serial_number + ' '
+			else:
+				None
 			# create tasks from template
 			for task in template.tasks:
+				exp_end_date_test = add_days(self.expected_start_date, task.start + task.duration)
+				if date_diff(self.expected_end_date, exp_end_date_test) < 0:
+					self.expected_end_date = add_days(exp_end_date_test, 1)
+					self.save()
 				frappe.get_doc(dict(
 					doctype = 'Task',
-					subject = task.subject,
+					subject = prefix+task.subject,
 					project = self.name,
+					template_task_name = task.task_name,
 					status = 'Open',
 					exp_start_date = add_days(self.expected_start_date, task.start),
 					exp_end_date = add_days(self.expected_start_date, task.start + task.duration),
 					description = task.description,
 					task_weight = task.task_weight
 				)).insert()
+				
+			#now we have got tasks ids, so create each task dependencies, if there are any, add entries to Task Depends On table
+			all_tasks = frappe.get_all("Task", filters={"project": self.name}, fields=["name", "subject", "template_task_name"])
+			for t_task in template.tasks:
+				if t_task.parent_task_template:
+					parent_task_name = t_task.parent_task_template.split("-", 1)
+					for task in all_tasks:
+						if task.template_task_name == parent_task_name[0]:
+							for task2 in all_tasks:
+								if task2.template_task_name == t_task.task_name:
+									taskdoc = frappe.get_doc("Task", task2.name)
+									depends_on_tasks = taskdoc.depends_on_tasks or ""
+									if task.name not in depends_on_tasks:
+										depends_on_tasks += task.name + ","
+									taskdoc.depends_on_tasks = depends_on_tasks
+									taskdoc.save()
+									frappe.get_doc(dict(
+										doctype = 'Task Depends On',
+										parent = task2.name,
+										parentfield = 'depends_on',
+										parenttype = 'Task',
+										project = self.name,
+										subject = task.subject,
+										task = task.name
+									)).insert()
 
 	def is_row_updated(self, row, existing_task_data, fields):
 		if self.get("__islocal") or not existing_task_data: return True
