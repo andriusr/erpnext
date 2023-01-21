@@ -7,4 +7,9 @@ from __future__ import unicode_literals
 from frappe.model.document import Document
 
 class ProjectTemplate(Document):
-	pass
+	def validate(self):
+			if self.is_new():
+				for d in self.tasks:
+					if d.parent_task_template:
+						d.parent_task_template = None
+
