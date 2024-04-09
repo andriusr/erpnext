@@ -81,7 +81,8 @@ class Lead(SellingController, CRMNote):
 				self.lead_name = self.email_id.split("@")[0]
 
 	def set_title(self):
-		self.title = self.company_name or self.lead_name
+		if not self.title:
+			self.title = self.company_name or self.lead_name
 
 	def check_email_id_is_unique(self):
 		if self.email_id:
