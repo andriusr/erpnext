@@ -161,7 +161,8 @@ extend_cscript(cur_frm.cscript, new erpnext.LeadController({ frm: cur_frm }));
 
 frappe.ui.form.on("Lead", {
 	make_opportunity: async function (frm) {
-		let existing_prospect = (
+		var fields = [];
+		/*let existing_prospect = (
 			await frappe.db.get_value(
 				"Prospect Lead",
 				{
@@ -174,7 +175,7 @@ frappe.ui.form.on("Lead", {
 		).message.name;
 
 		if (!existing_prospect) {
-			var fields = [
+			fields = [
 				{
 					label: "Create Prospect",
 					fieldname: "create_prospect",
@@ -189,7 +190,7 @@ frappe.ui.form.on("Lead", {
 					depends_on: "create_prospect",
 				},
 			];
-		}
+		}*/
 		let existing_contact = (
 			await frappe.db.get_value(
 				"Contact",
