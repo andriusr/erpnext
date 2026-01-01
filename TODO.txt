@@ -1,0 +1,7 @@
+TO DO tasks and issues
+
+1. Jeigu Opp kuri ne is lead (is pradziu buvo lead su prikabintu emailu, bet opp formoje pasirenki Customer), tada emailai nebeatsiduria activities tabse.
+2. Leads title automatiskai nesikopijuoja i Opp title, vietoje to susikonfiguruoja company name.
+3. Sukurus Opp from Lead, lead statusas automatiskai nepasikeicia i Opp.
+4. Jeigu emailo adresas jau yra sistemoje, reikia is karto kurti opportunity.
+5. Kuriant Leads/Opps naudoti ne From adresa, o To, Dar butu gerai padaryti parsinga emailo body, kad surasti originalia kilme, jeigu ateina is web-puslapio.

@@ -432,7 +432,7 @@ def auto_close_opportunity():
 		doc.flags.ignore_mandatory = True
 		doc.save()
 
-
+# Used in Communication listview for button Create Opportunity
 @frappe.whitelist()
 def make_opportunity_from_communication(communication, company, ignore_communication_links=False):
 	from erpnext.crm.doctype.lead.lead import make_lead_from_communication

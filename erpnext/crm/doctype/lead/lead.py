@@ -412,7 +412,7 @@ def get_lead_details(lead, posting_date=None, company=None):
 
 	return out
 
-
+#used in Communication listview for Make Lead button
 @frappe.whitelist()
 def make_lead_from_communication(communication, ignore_communication_links=False):
 	"""raise a issue from email"""
