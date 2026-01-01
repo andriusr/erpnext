@@ -241,8 +241,6 @@ def install(country=None):
 		{"doctype": "Issue Priority", "name": _("Low")},
 		{"doctype": "Issue Priority", "name": _("Medium")},
 		{"doctype": "Issue Priority", "name": _("High")},
-		{"doctype": "Email Account", "email_id": "sales@example.com", "append_to": "Opportunity"},
-		{"doctype": "Email Account", "email_id": "support@example.com", "append_to": "Issue"},
 		{"doctype": "Party Type", "party_type": "Customer", "account_type": "Receivable"},
 		{"doctype": "Party Type", "party_type": "Supplier", "account_type": "Payable"},
 		{"doctype": "Party Type", "party_type": "Employee", "account_type": "Payable"},
@@ -276,9 +274,7 @@ def install(country=None):
 		records += [{"doctype": doctype, title_field: title} for title in read_lines(filename)]
 
 	base_path = frappe.get_app_path("erpnext", "stock", "doctype")
-	response = frappe.read_file(
-		os.path.join(base_path, "delivery_trip/dispatch_notification_template.html")
-	)
+	response = frappe.read_file(os.path.join(base_path, "delivery_trip/dispatch_notification_template.html"))
 
 	records += [
 		{
@@ -478,12 +474,11 @@ def update_stock_settings():
 	stock_settings = frappe.get_doc("Stock Settings")
 	stock_settings.item_naming_by = "Item Code"
 	stock_settings.valuation_method = "FIFO"
-	stock_settings.default_warehouse = frappe.db.get_value(
-		"Warehouse", {"warehouse_name": _("Stores")}
-	)
+	stock_settings.default_warehouse = frappe.db.get_value("Warehouse", {"warehouse_name": _("Stores")})
 	stock_settings.stock_uom = _("Nos")
 	stock_settings.auto_indent = 1
 	stock_settings.auto_insert_price_list_rate_if_missing = 1
+	stock_settings.update_price_list_based_on = "Rate"
 	stock_settings.automatically_set_serial_nos_based_on_fifo = 1
 	stock_settings.set_qty_in_transactions_based_on_serial_no_input = 1
 	stock_settings.save()

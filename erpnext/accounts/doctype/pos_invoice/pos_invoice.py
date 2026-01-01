@@ -27,7 +27,7 @@ from erpnext.stock.doctype.serial_no.serial_no import (
 
 class POSInvoice(SalesInvoice):
 	def __init__(self, *args, **kwargs):
-		super(POSInvoice, self).__init__(*args, **kwargs)
+		super().__init__(*args, **kwargs)
 
 	def validate(self):
 		if not cint(self.is_pos):
@@ -129,7 +129,9 @@ class POSInvoice(SalesInvoice):
 				)
 
 				if paid_amt and pay.amount != paid_amt:
-					return frappe.throw(_("Payment related to {0} is not completed").format(pay.mode_of_payment))
+					return frappe.throw(
+						_("Payment related to {0} is not completed").format(pay.mode_of_payment)
+					)
 
 	def validate_pos_reserved_serial_nos(self, item):
 		serial_nos = get_serial_nos(item.serial_no)
@@ -164,7 +166,7 @@ class POSInvoice(SalesInvoice):
 				serial_nos = row.serial_no.split("\n")
 
 		if serial_nos:
-			for key, value in collections.Counter(serial_nos).items():
+			for _key, value in collections.Counter(serial_nos).items():
 				if value > 1:
 					frappe.throw(_("Duplicate Serial No {0} found").format("key"))
 
@@ -191,9 +193,7 @@ class POSInvoice(SalesInvoice):
 			frappe.throw(
 				_(
 					"Row #{}: Batch No. {} of item {} has less than required stock available, {} more required"
-				).format(
-					item.idx, bold_invalid_batch_no, bold_item_name, bold_extra_batch_qty_needed
-				),
+				).format(item.idx, bold_invalid_batch_no, bold_item_name, bold_extra_batch_qty_needed),
 				title=_("Item Unavailable"),
 			)
 
@@ -249,7 +249,7 @@ class POSInvoice(SalesInvoice):
 
 				available_stock, is_stock_item = get_stock_availability(d.item_code, d.warehouse)
 
-				item_code, warehouse, qty = (
+				item_code, warehouse, _qty = (
 					frappe.bold(d.item_code),
 					frappe.bold(d.warehouse),
 					frappe.bold(d.qty),
@@ -379,7 +379,7 @@ class POSInvoice(SalesInvoice):
 			if self.is_return and entry.amount > 0:
 				frappe.throw(_("Row #{0} (Payment Table): Amount must be negative").format(entry.idx))
 
-		if self.is_return:
+		if self.is_return and self.docstatus != 0:
 			invoice_total = self.rounded_total or self.grand_total
 			if total_amount_in_payments and total_amount_in_payments < invoice_total:
 				frappe.throw(_("Total payments amount can't be greater than {}").format(-invoice_total))
@@ -560,7 +560,13 @@ class POSInvoice(SalesInvoice):
 				"Account", self.debit_to, "account_currency", cache=True
 			)
 		if not self.due_date and self.customer:
-			self.due_date = get_due_date(self.posting_date, "Customer", self.customer, self.company)
+			self.due_date = get_due_date(
+				self.posting_date,
+				"Customer",
+				self.customer,
+				self.company,
+				template_name=self.payment_terms_template,
+			)
 
 		super(SalesInvoice, self).set_missing_values(for_validate)
 

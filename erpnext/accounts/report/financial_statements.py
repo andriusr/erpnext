@@ -2,6 +2,7 @@
 # License: GNU General Public License v3. See license.txt
 
 
+import copy
 import functools
 import math
 import re
@@ -162,7 +163,6 @@ def get_data(
 	ignore_accumulated_values_for_fy=False,
 	total=True,
 ):
-
 	accounts = get_accounts(company, root_type)
 	if not accounts:
 		return None
@@ -178,7 +178,6 @@ def get_data(
 		root_type,
 		as_dict=1,
 	):
-
 		set_gl_entries_by_account(
 			company,
 			period_list[0]["year_start_date"] if only_current_fiscal_year else None,
@@ -236,7 +235,8 @@ def calculate_values(
 
 				if entry.posting_date <= period.to_date:
 					if (accumulated_values or entry.posting_date >= period.from_date) and (
-						not ignore_accumulated_values_for_fy or entry.fiscal_year == period.to_date_fiscal_year
+						not ignore_accumulated_values_for_fy
+						or entry.fiscal_year == period.to_date_fiscal_year
 					):
 						d[period.key] = d.get(period.key, 0.0) + flt(entry.debit) - flt(entry.credit)
 
@@ -280,9 +280,7 @@ def prepare_data(accounts, balance_must_be, period_list, company_currency):
 				"is_group": d.is_group,
 				"opening_balance": d.get("opening_balance", 0.0) * (1 if balance_must_be == "Debit" else -1),
 				"account_name": (
-					"%s - %s" % (_(d.account_number), _(d.account_name))
-					if d.account_number
-					else _(d.account_name)
+					f"{_(d.account_number)} - {_(d.account_name)}" if d.account_number else _(d.account_name)
 				),
 			}
 		)
@@ -370,7 +368,7 @@ def filter_accounts(accounts, depth=20):
 	def add_to_list(parent, level):
 		if level < depth:
 			children = parent_children_map.get(parent) or []
-			sort_accounts(children, is_root=True if parent == None else False)
+			sort_accounts(children, is_root=True if parent is None else False)
 
 			for child in children:
 				child.indent = level
@@ -514,12 +512,16 @@ def get_accounting_entries(
 		.where(gl_entry.company == filters.company)
 	)
 
+	ignore_is_opening = frappe.db.get_single_value(
+		"Accounts Settings", "ignore_is_opening_check_for_reporting"
+	)
+
 	if doctype == "GL Entry":
 		query = query.select(gl_entry.posting_date, gl_entry.is_opening, gl_entry.fiscal_year)
 		query = query.where(gl_entry.is_cancelled == 0)
 		query = query.where(gl_entry.posting_date <= to_date)
 
-		if ignore_opening_entries:
+		if ignore_opening_entries and not ignore_is_opening:
 			query = query.where(gl_entry.is_opening == "No")
 	else:
 		query = query.select(gl_entry.closing_date.as_("posting_date"))
@@ -528,9 +530,15 @@ def get_accounting_entries(
 	query = apply_additional_conditions(doctype, query, from_date, ignore_closing_entries, filters)
 	query = query.where(gl_entry.account.isin(accounts))
 
-	entries = query.run(as_dict=True)
+	from frappe.desk.reportview import build_match_conditions
 
-	return entries
+	query, params = query.walk()
+	match_conditions = build_match_conditions(doctype)
+
+	if match_conditions:
+		query += "and" + match_conditions
+
+	return frappe.db.sql(query, params, as_dict=True)
 
 
 def apply_additional_conditions(doctype, query, from_date, ignore_closing_entries, filters):
@@ -561,7 +569,9 @@ def apply_additional_conditions(doctype, query, from_date, ignore_closing_entrie
 			company_fb = frappe.get_cached_value("Company", filters.company, "default_finance_book")
 
 			if filters.finance_book and company_fb and cstr(filters.finance_book) != cstr(company_fb):
-				frappe.throw(_("To use a different finance book, please uncheck 'Include Default FB Entries'"))
+				frappe.throw(
+					_("To use a different finance book, please uncheck 'Include Default FB Entries'")
+				)
 
 			query = query.where(
 				(gl_entry.finance_book.isin([cstr(filters.finance_book), cstr(company_fb), ""]))
@@ -654,3 +664,67 @@ def get_filtered_list_for_consolidated_report(filters, period_list):
 			filtered_summary_list.append(period)
 
 	return filtered_summary_list
+
+
+def compute_growth_view_data(data, columns):
+	data_copy = copy.deepcopy(data)
+
+	for row_idx in range(len(data_copy)):
+		for column_idx in range(1, len(columns)):
+			previous_period_key = columns[column_idx - 1].get("key")
+			current_period_key = columns[column_idx].get("key")
+			current_period_value = data_copy[row_idx].get(current_period_key)
+			previous_period_value = data_copy[row_idx].get(previous_period_key)
+			annual_growth = 0
+
+			if current_period_value is None:
+				data[row_idx][current_period_key] = None
+				continue
+
+			if previous_period_value == 0 and current_period_value > 0:
+				annual_growth = 1
+
+			elif previous_period_value > 0:
+				annual_growth = (current_period_value - previous_period_value) / previous_period_value
+
+			growth_percent = round(annual_growth * 100, 2)
+
+			data[row_idx][current_period_key] = growth_percent
+
+
+def compute_margin_view_data(data, columns, accumulated_values):
+	if not columns:
+		return
+
+	if not accumulated_values:
+		columns.append({"key": "total"})
+
+	data_copy = copy.deepcopy(data)
+
+	base_row = None
+	for row in data_copy:
+		if row.get("account_name") == _("Income"):
+			base_row = row
+			break
+
+	if not base_row:
+		return
+
+	for row_idx in range(len(data_copy)):
+		# Taking the total income from each column (for all the financial years) as the base (100%)
+		row = data_copy[row_idx]
+		if not row:
+			continue
+
+		for column in columns:
+			curr_period = column.get("key")
+			base_value = base_row[curr_period]
+			curr_value = row[curr_period]
+
+			if curr_value is None or base_value <= 0:
+				data[row_idx][curr_period] = None
+				continue
+
+			margin_percent = round((curr_value / base_value) * 100, 2)
+
+			data[row_idx][curr_period] = margin_percent

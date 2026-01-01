@@ -4,6 +4,8 @@ set -e
 
 cd ~ || exit
 
+export BENCH_DISABLE_UV=1
+
 sudo apt update && sudo apt install redis-server libcups2-dev
 
 pip install frappe-bench

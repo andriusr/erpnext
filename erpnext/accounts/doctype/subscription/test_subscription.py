@@ -1,7 +1,6 @@
 # Copyright (c) 2018, Frappe Technologies Pvt. Ltd. and Contributors
 # See license.txt
 
-import unittest
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -85,9 +84,7 @@ def create_parties():
 		customer = frappe.new_doc("Customer")
 		customer.customer_name = "_Test Subscription Customer"
 		customer.billing_currency = "USD"
-		customer.append(
-			"accounts", {"company": "_Test Company", "account": "_Test Receivable USD - _TC"}
-		)
+		customer.append("accounts", {"company": "_Test Company", "account": "_Test Receivable USD - _TC"})
 		customer.insert()
 
 
@@ -358,9 +355,7 @@ class TestSubscription(FrappeTestCase):
 
 		invoice = subscription.get_current_invoice()
 		diff = flt(date_diff(nowdate(), subscription.current_invoice_start) + 1)
-		plan_days = flt(
-			date_diff(subscription.current_invoice_end, subscription.current_invoice_start) + 1
-		)
+		plan_days = flt(date_diff(subscription.current_invoice_end, subscription.current_invoice_start) + 1)
 		prorate_factor = flt(diff / plan_days)
 
 		self.assertEqual(
@@ -417,9 +412,7 @@ class TestSubscription(FrappeTestCase):
 
 		invoice = subscription.get_current_invoice()
 		diff = flt(date_diff(nowdate(), subscription.current_invoice_start) + 1)
-		plan_days = flt(
-			date_diff(subscription.current_invoice_end, subscription.current_invoice_start) + 1
-		)
+		plan_days = flt(date_diff(subscription.current_invoice_end, subscription.current_invoice_start) + 1)
 		prorate_factor = flt(diff / plan_days)
 
 		self.assertEqual(flt(invoice.grand_total, 2), flt(prorate_factor * 900, 2))
@@ -719,3 +712,18 @@ class TestSubscription(FrappeTestCase):
 		self.assertEqual(pi.total, 55333.33)
 
 		subscription.delete()
+
+	def test_future_subscription(self):
+		"""Force-Fetch should not process future subscriptions"""
+		subscription = frappe.new_doc("Subscription")
+		subscription.party_type = "Customer"
+		subscription.party = "_Test Customer"
+		subscription.generate_invoice_at_period_start = 1
+		subscription.generate_new_invoices_past_due_date = 1
+		subscription.start_date = add_months(nowdate(), 1)
+		subscription.append("plans", {"plan": "_Test Plan Name", "qty": 1})
+		subscription.save()
+
+		subscription.force_fetch_subscription_updates()
+		subscription.reload()
+		self.assertEqual(len(subscription.invoices), 0)

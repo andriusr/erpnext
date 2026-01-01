@@ -101,7 +101,8 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 				# no gl entries
 				self.assertTrue(
 					frappe.db.get_value(
-						"Stock Ledger Entry", {"voucher_type": "Stock Reconciliation", "voucher_no": stock_reco.name}
+						"Stock Ledger Entry",
+						{"voucher_type": "Stock Reconciliation", "voucher_no": stock_reco.name},
 					)
 				)
 
@@ -147,7 +148,6 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 
 	def test_stock_reco_for_serialized_item(self):
 		to_delete_records = []
-		to_delete_serial_nos = []
 
 		# Add new serial nos
 		serial_item_code = "Stock-Reco-Serial-Item-1"
@@ -215,7 +215,7 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 			purpose="Opening Stock",
 		)
 
-		for i in range(3):
+		for _i in range(3):
 			sr.append(
 				"items",
 				{
@@ -394,9 +394,7 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 
 	def test_customer_provided_items(self):
 		item_code = "Stock-Reco-customer-Item-100"
-		create_item(
-			item_code, is_customer_provided_item=1, customer="_Test Customer", is_purchase_item=0
-		)
+		create_item(item_code, is_customer_provided_item=1, customer="_Test Customer", is_purchase_item=0)
 
 		sr = create_stock_reconciliation(item_code=item_code, qty=10, rate=420)
 
@@ -579,18 +577,18 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 		item_code = self.make_item().name
 		warehouse = "_Test Warehouse - _TC"
 
-		sr = create_stock_reconciliation(
+		create_stock_reconciliation(
 			item_code=item_code, warehouse=warehouse, qty=10, rate=100, posting_date=add_days(nowdate(), 10)
 		)
 
-		dn = create_delivery_note(
+		create_delivery_note(
 			item_code=item_code, warehouse=warehouse, qty=5, rate=120, posting_date=add_days(nowdate(), 12)
 		)
 		old_bin_qty = frappe.db.get_value(
 			"Bin", {"item_code": item_code, "warehouse": warehouse}, "actual_qty"
 		)
 
-		sr2 = create_stock_reconciliation(
+		create_stock_reconciliation(
 			item_code=item_code, warehouse=warehouse, qty=11, rate=100, posting_date=add_days(nowdate(), 11)
 		)
 		new_bin_qty = frappe.db.get_value(
@@ -830,7 +828,7 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 		warehouse = "_Test Warehouse - _TC"
 
 		# Stock Value => 100 * 100 = 10000
-		se = make_stock_entry(
+		make_stock_entry(
 			item_code=item_code,
 			target=warehouse,
 			qty=100,
@@ -1118,10 +1116,35 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 				self.assertEqual(d.actual_qty, 5.0)
 				self.assertAlmostEqual(d.stock_value_difference, 500.0)
 
-		active_serial_no = frappe.get_all(
-			"Serial No", filters={"status": "Active", "item_code": item_code}
-		)
+		active_serial_no = frappe.get_all("Serial No", filters={"status": "Active", "item_code": item_code})
 		self.assertEqual(len(active_serial_no), 5)
+
+	def test_stock_reco_for_serialized_item_with_different_warehouse(self):
+		from erpnext.stock.doctype.stock_entry.test_stock_entry import make_stock_entry
+
+		# Add new serial nos
+		serial_item_code = "Stock-Reco-Serial-Item-11"
+		warehouse = "_Test Warehouse - _TC"
+		serial_warehouse = "_Test Warehouse for Stock Reco1 - _TC"
+
+		self.make_item(
+			serial_item_code, {"is_stock_item": 1, "has_serial_no": 1, "serial_no_series": "SNT-SRS11.####"}
+		)
+
+		make_stock_entry(item_code=serial_item_code, target=warehouse, qty=10, basic_rate=100)
+		stock_entry = make_stock_entry(
+			item_code=serial_item_code, target=serial_warehouse, qty=10, basic_rate=200
+		)
+
+		sr = create_stock_reconciliation(
+			item_code=serial_item_code, warehouse=warehouse, qty=11, rate=200, do_not_submit=True
+		)
+
+		serial_nos = get_serial_nos(stock_entry.items[0].serial_no)
+
+		sr.items[0].serial_no += f"\n{serial_nos[0]}"
+		sr.save()
+		self.assertRaises(frappe.ValidationError, sr.submit)
 
 
 def create_batch_item_with_batch(item_name, batch_id):
@@ -1213,9 +1236,7 @@ def create_stock_reconciliation(**args):
 			)
 		)
 		if frappe.get_all("Stock Ledger Entry", {"company": sr.company})
-		else frappe.get_cached_value(
-			"Account", {"account_type": "Temporary", "company": sr.company}, "name"
-		)
+		else frappe.get_cached_value("Account", {"account_type": "Temporary", "company": sr.company}, "name")
 	)
 	sr.cost_center = (
 		args.cost_center

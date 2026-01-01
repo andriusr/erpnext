@@ -19,14 +19,24 @@ frappe.query_reports["Stock Ageing"] = {
 			reqd: 1,
 		},
 		{
+			fieldname: "warehouse_type",
+			label: __("Warehouse Type"),
+			fieldtype: "Link",
+			width: "80",
+			options: "Warehouse Type",
+		},
+		{
 			fieldname: "warehouse",
 			label: __("Warehouse"),
 			fieldtype: "Link",
 			options: "Warehouse",
 			get_query: () => {
+				let warehouse_type = frappe.query_report.get_filter_value("warehouse_type");
 				const company = frappe.query_report.get_filter_value("company");
+
 				return {
 					filters: {
+						...(warehouse_type && { warehouse_type }),
 						...(company && { company }),
 					},
 				};
@@ -68,6 +78,12 @@ frappe.query_reports["Stock Ageing"] = {
 		{
 			fieldname: "show_warehouse_wise_stock",
 			label: __("Show Warehouse-wise Stock"),
+			fieldtype: "Check",
+			default: 0,
+		},
+		{
+			fieldname: "ignore_closing_balance",
+			label: __("Ignore Closing Balance"),
 			fieldtype: "Check",
 			default: 0,
 		},

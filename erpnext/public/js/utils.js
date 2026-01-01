@@ -215,17 +215,9 @@ $.extend(erpnext.utils, {
 	},
 
 	make_bank_account: function (doctype, docname) {
-		frappe.call({
-			method: "erpnext.accounts.doctype.bank_account.bank_account.make_bank_account",
-			args: {
-				doctype: doctype,
-				docname: docname,
-			},
-			freeze: true,
-			callback: function (r) {
-				var doclist = frappe.model.sync(r.message);
-				frappe.set_route("Form", doclist[0].doctype, doclist[0].name);
-			},
+		frappe.new_doc("Bank Account", {
+			party_type: doctype,
+			party: docname,
 		});
 	},
 
@@ -397,7 +389,10 @@ $.extend(erpnext.utils, {
 		}
 	},
 
-	get_fiscal_year: function (date) {
+	get_fiscal_year: function (date, with_dates = false, boolean = false) {
+		if (!frappe.boot.setup_complete) {
+			return;
+		}
 		if (!date) {
 			date = frappe.datetime.get_today();
 		}
@@ -407,11 +402,13 @@ $.extend(erpnext.utils, {
 			method: "erpnext.accounts.utils.get_fiscal_year",
 			args: {
 				date: date,
+				boolean: boolean,
 			},
 			async: false,
 			callback: function (r) {
 				if (r.message) {
-					fiscal_year = r.message[0];
+					if (with_dates) fiscal_year = r.message;
+					else fiscal_year = r.message[0];
 				}
 			},
 		});
@@ -623,6 +620,62 @@ erpnext.utils.update_child_items = function (opts) {
 					filters: filters,
 				};
 			},
+			onchange: function () {
+				const me = this;
+
+				frm.call({
+					method: "erpnext.stock.get_item_details.get_item_details",
+					args: {
+						doc: frm.doc,
+						args: {
+							item_code: this.value,
+							set_warehouse: frm.doc.set_warehouse,
+							customer: frm.doc.customer || frm.doc.party_name,
+							quotation_to: frm.doc.quotation_to,
+							supplier: frm.doc.supplier,
+							currency: frm.doc.currency,
+							is_internal_supplier: frm.doc.is_internal_supplier,
+							is_internal_customer: frm.doc.is_internal_customer,
+							conversion_rate: frm.doc.conversion_rate,
+							price_list: frm.doc.selling_price_list || frm.doc.buying_price_list,
+							price_list_currency: frm.doc.price_list_currency,
+							plc_conversion_rate: frm.doc.plc_conversion_rate,
+							company: frm.doc.company,
+							order_type: frm.doc.order_type,
+							is_pos: cint(frm.doc.is_pos),
+							is_return: cint(frm.doc.is_return),
+							is_subcontracted: frm.doc.is_subcontracted,
+							ignore_pricing_rule: frm.doc.ignore_pricing_rule,
+							doctype: frm.doc.doctype,
+							name: frm.doc.name,
+							qty: me.doc.qty || 1,
+							uom: me.doc.uom,
+							pos_profile: cint(frm.doc.is_pos) ? frm.doc.pos_profile : "",
+							tax_category: frm.doc.tax_category,
+							child_doctype: frm.doc.doctype + " Item",
+							is_old_subcontracting_flow: frm.doc.is_old_subcontracting_flow,
+						},
+					},
+					callback: function (r) {
+						if (r.message) {
+							const { qty, price_list_rate: rate, uom, conversion_factor } = r.message;
+
+							const row = dialog.fields_dict.trans_items.df.data.find(
+								(doc) => doc.idx == me.doc.idx
+							);
+							if (row) {
+								Object.assign(row, {
+									conversion_factor: me.doc.conversion_factor || conversion_factor,
+									uom: me.doc.uom || uom,
+									qty: me.doc.qty || qty,
+									rate: me.doc.rate || rate,
+								});
+								dialog.fields_dict.trans_items.grid.refresh();
+							}
+						}
+					},
+				});
+			},
 		},
 		{
 			fieldtype: "Link",
@@ -689,7 +742,7 @@ erpnext.utils.update_child_items = function (opts) {
 		});
 	}
 
-	new frappe.ui.Dialog({
+	let dialog = new frappe.ui.Dialog({
 		title: __("Update Items"),
 		size: "extra-large",
 		fields: [
@@ -726,7 +779,9 @@ erpnext.utils.update_child_items = function (opts) {
 			refresh_field("items");
 		},
 		primary_action_label: __("Update"),
-	}).show();
+	});
+
+	dialog.show();
 };
 
 erpnext.utils.map_current_doc = function (opts) {
@@ -819,12 +874,15 @@ erpnext.utils.map_current_doc = function (opts) {
 
 	if (opts.source_doctype) {
 		let data_fields = [];
-		if (opts.source_doctype == "Purchase Receipt") {
-			data_fields.push({
-				fieldname: "merge_taxes",
-				fieldtype: "Check",
-				label: __("Merge taxes from multiple documents"),
-			});
+		if (["Purchase Receipt", "Delivery Note"].includes(opts.source_doctype)) {
+			let target_meta = frappe.get_meta(cur_frm.doc.doctype);
+			if (target_meta.fields.find((f) => f.fieldname === "taxes")) {
+				data_fields.push({
+					fieldname: "merge_taxes",
+					fieldtype: "Check",
+					label: __("Merge taxes from multiple documents"),
+				});
+			}
 		}
 		const d = new frappe.ui.form.MultiSelectDialog({
 			doctype: opts.source_doctype,
@@ -845,7 +903,10 @@ erpnext.utils.map_current_doc = function (opts) {
 					return;
 				}
 				opts.source_name = values;
-				if (opts.allow_child_item_selection || opts.source_doctype == "Purchase Receipt") {
+				if (
+					opts.allow_child_item_selection ||
+					["Purchase Receipt", "Delivery Note"].includes(opts.source_doctype)
+				) {
 					// args contains filtered child docnames
 					opts.args = args;
 				}

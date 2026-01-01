@@ -23,6 +23,7 @@ def get_columns():
 	"""return columns"""
 	columns = [
 		_("Item") + ":Link/Item:150",
+		_("Item Name") + "::240",
 		_("Description") + "::300",
 		_("BOM Qty") + ":Float:160",
 		_("BOM UoM") + "::160",
@@ -44,9 +45,7 @@ def get_bom_stock(filters):
 	else:
 		bom_item_table = "BOM Item"
 
-	warehouse_details = frappe.db.get_value(
-		"Warehouse", filters.get("warehouse"), ["lft", "rgt"], as_dict=1
-	)
+	warehouse_details = frappe.db.get_value("Warehouse", filters.get("warehouse"), ["lft", "rgt"], as_dict=1)
 
 	BOM = frappe.qb.DocType("BOM")
 	BOM_ITEM = frappe.qb.DocType(bom_item_table)
@@ -75,11 +74,12 @@ def get_bom_stock(filters):
 		.on((BOM_ITEM.item_code == BIN.item_code) & (CONDITIONS))
 		.select(
 			BOM_ITEM.item_code,
+			BOM_ITEM.item_name,
 			BOM_ITEM.description,
 			BOM_ITEM.stock_qty,
 			BOM_ITEM.stock_uom,
 			BOM_ITEM.stock_qty * qty_to_produce / BOM.quantity,
-			Sum(BIN.actual_qty).as_("actual_qty"),
+			BIN.actual_qty.as_("actual_qty"),
 			Sum(Floor(BIN.actual_qty / (BOM_ITEM.stock_qty * qty_to_produce / BOM.quantity))),
 		)
 		.where((BOM_ITEM.parent == filters.get("bom")) & (BOM_ITEM.parenttype == "BOM"))

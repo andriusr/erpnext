@@ -37,14 +37,14 @@ frappe.query_reports["Job Card Summary"] = {
 			label: __("From Posting Date"),
 			fieldname: "from_date",
 			fieldtype: "Date",
-			default: frappe.defaults.get_user_default("year_start_date"),
+			default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today(), true)[1],
 			reqd: 1,
 		},
 		{
 			label: __("To Posting Date"),
 			fieldname: "to_date",
 			fieldtype: "Date",
-			default: frappe.defaults.get_user_default("year_end_date"),
+			default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today(), true)[2],
 			reqd: 1,
 		},
 		{
@@ -57,6 +57,7 @@ frappe.query_reports["Job Card Summary"] = {
 			label: __("Work Orders"),
 			fieldname: "work_order",
 			fieldtype: "MultiSelectList",
+			options: "Work Order",
 			get_data: function (txt) {
 				return frappe.db.get_link_options("Work Order", txt);
 			},
@@ -65,6 +66,7 @@ frappe.query_reports["Job Card Summary"] = {
 			label: __("Production Item"),
 			fieldname: "production_item",
 			fieldtype: "MultiSelectList",
+			options: "Item",
 			get_data: function (txt) {
 				return frappe.db.get_link_options("Item", txt);
 			},

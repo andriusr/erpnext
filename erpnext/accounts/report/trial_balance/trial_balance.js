@@ -37,13 +37,13 @@ frappe.require("assets/erpnext/js/financial_statements.js", function () {
 				fieldname: "from_date",
 				label: __("From Date"),
 				fieldtype: "Date",
-				default: frappe.defaults.get_user_default("year_start_date"),
+				default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today(), true)[1],
 			},
 			{
 				fieldname: "to_date",
 				label: __("To Date"),
 				fieldtype: "Date",
-				default: frappe.defaults.get_user_default("year_end_date"),
+				default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today(), true)[2],
 			},
 			{
 				fieldname: "cost_center",
@@ -79,8 +79,14 @@ frappe.require("assets/erpnext/js/financial_statements.js", function () {
 				options: erpnext.get_presentation_currency_list(),
 			},
 			{
-				fieldname: "with_period_closing_entry",
-				label: __("Period Closing Entry"),
+				fieldname: "with_period_closing_entry_for_opening",
+				label: __("With Period Closing Entry For Opening Balances"),
+				fieldtype: "Check",
+				default: 1,
+			},
+			{
+				fieldname: "with_period_closing_entry_for_current_period",
+				label: __("Period Closing Entry For Current Period"),
 				fieldtype: "Check",
 				default: 1,
 			},

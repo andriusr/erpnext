@@ -30,6 +30,38 @@ class TestQuotation(FrappeTestCase):
 
 		self.assertTrue(sales_order.get("payment_schedule"))
 
+	def test_do_not_add_ordered_items_in_new_sales_order(self):
+		from erpnext.selling.doctype.quotation.quotation import make_sales_order
+		from erpnext.stock.doctype.item.test_item import make_item
+
+		item = make_item("_Test Item for Quotation for SO", {"is_stock_item": 1})
+
+		quotation = make_quotation(qty=5, do_not_submit=True)
+		quotation.append(
+			"items",
+			{
+				"item_code": item.name,
+				"qty": 5,
+				"rate": 100,
+				"conversion_factor": 1,
+				"uom": item.stock_uom,
+				"warehouse": "_Test Warehouse - _TC",
+				"stock_uom": item.stock_uom,
+			},
+		)
+		quotation.submit()
+
+		sales_order = make_sales_order(quotation.name)
+		sales_order.delivery_date = nowdate()
+		self.assertEqual(len(sales_order.items), 2)
+		sales_order.remove(sales_order.items[1])
+		sales_order.submit()
+
+		sales_order = make_sales_order(quotation.name)
+		self.assertEqual(len(sales_order.items), 1)
+		self.assertEqual(sales_order.items[0].item_code, item.name)
+		self.assertEqual(sales_order.items[0].qty, 5.0)
+
 	def test_gross_profit(self):
 		from erpnext.stock.doctype.item.test_item import make_item
 		from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
@@ -122,6 +154,7 @@ class TestQuotation(FrappeTestCase):
 
 		sales_order.naming_series = "_T-Quotation-"
 		sales_order.transaction_date = nowdate()
+		sales_order.delivery_date = nowdate()
 		sales_order.insert()
 
 	def test_make_sales_order_with_terms(self):
@@ -140,9 +173,7 @@ class TestQuotation(FrappeTestCase):
 		self.assertEqual(quotation.payment_schedule[0].payment_amount, 8906.00)
 		self.assertEqual(quotation.payment_schedule[0].due_date, quotation.transaction_date)
 		self.assertEqual(quotation.payment_schedule[1].payment_amount, 8906.00)
-		self.assertEqual(
-			quotation.payment_schedule[1].due_date, add_days(quotation.transaction_date, 30)
-		)
+		self.assertEqual(quotation.payment_schedule[1].due_date, add_days(quotation.transaction_date, 30))
 
 		sales_order = make_sales_order(quotation.name)
 
@@ -154,6 +185,7 @@ class TestQuotation(FrappeTestCase):
 
 		sales_order.naming_series = "_T-Quotation-"
 		sales_order.transaction_date = nowdate()
+		sales_order.delivery_date = nowdate()
 		sales_order.insert()
 
 		# Remove any unknown taxes if applied
@@ -175,9 +207,7 @@ class TestQuotation(FrappeTestCase):
 	def test_so_from_expired_quotation(self):
 		from erpnext.selling.doctype.quotation.quotation import make_sales_order
 
-		frappe.db.set_single_value(
-			"Selling Settings", "allow_sales_order_creation_for_expired_quotation", 0
-		)
+		frappe.db.set_single_value("Selling Settings", "allow_sales_order_creation_for_expired_quotation", 0)
 
 		quotation = frappe.copy_doc(test_records[0])
 		quotation.valid_till = add_days(nowdate(), -1)
@@ -186,9 +216,7 @@ class TestQuotation(FrappeTestCase):
 
 		self.assertRaises(frappe.ValidationError, make_sales_order, quotation.name)
 
-		frappe.db.set_single_value(
-			"Selling Settings", "allow_sales_order_creation_for_expired_quotation", 1
-		)
+		frappe.db.set_single_value("Selling Settings", "allow_sales_order_creation_for_expired_quotation", 1)
 
 		make_sales_order(quotation.name)
 

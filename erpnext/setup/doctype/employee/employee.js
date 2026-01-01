@@ -18,21 +18,15 @@ erpnext.setup.EmployeeController = class EmployeeController extends frappe.ui.fo
 	refresh() {
 		erpnext.toggle_naming_series();
 	}
-
-	salutation() {
-		if (this.frm.doc.salutation) {
-			this.frm.set_value(
-				"gender",
-				{
-					Mr: "Male",
-					Ms: "Female",
-				}[this.frm.doc.salutation]
-			);
-		}
-	}
 };
 
 frappe.ui.form.on("Employee", {
+	setup: function (frm) {
+		frm.make_methods = {
+			"Bank Account": () => erpnext.utils.make_bank_account(frm.doc.doctype, frm.doc.name),
+		};
+	},
+
 	onload: function (frm) {
 		frm.set_query("department", function () {
 			return {

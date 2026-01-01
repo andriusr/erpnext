@@ -27,7 +27,26 @@ from erpnext.utilities.transaction_base import TransactionBase
 class Opportunity(TransactionBase, CRMNote):
 	def onload(self):
 		ref_doc = frappe.get_doc(self.opportunity_from, self.party_name)
+
 		load_address_and_contact(ref_doc)
+		load_address_and_contact(self)
+
+		ref_doc_contact_list = ref_doc.get("__onload").get("contact_list")
+		opportunity_doc_contact_list = [
+			contact
+			for contact in self.get("__onload").get("contact_list")
+			if contact not in ref_doc_contact_list
+		]
+		ref_doc_contact_list.extend(opportunity_doc_contact_list)
+		ref_doc.set_onload("contact_list", ref_doc_contact_list)
+
+		ref_doc_addr_list = ref_doc.get("__onload").get("addr_list")
+		opportunity_doc_addr_list = [
+			addr for addr in self.get("__onload").get("addr_list") if addr not in ref_doc_addr_list
+		]
+		ref_doc_addr_list.extend(opportunity_doc_addr_list)
+		ref_doc.set_onload("addr_list", ref_doc_addr_list)
+
 		self.set("__onload", ref_doc.get("__onload"))
 
 	def after_insert(self):
@@ -304,9 +323,7 @@ def make_quotation(source_name, target_doc=None):
 		quotation.conversion_rate = exchange_rate
 
 		# get default taxes
-		taxes = get_default_taxes_and_charges(
-			"Sales Taxes and Charges Template", company=quotation.company
-		)
+		taxes = get_default_taxes_and_charges("Sales Taxes and Charges Template", company=quotation.company)
 		if taxes.get("taxes"):
 			quotation.update(taxes)
 
@@ -412,9 +429,7 @@ def set_multiple_status(names, status):
 
 def auto_close_opportunity():
 	"""auto close the `Replied` Opportunities after 7 days"""
-	auto_close_after_days = (
-		frappe.db.get_single_value("CRM Settings", "close_opportunity_after_days") or 15
-	)
+	auto_close_after_days = frappe.db.get_single_value("CRM Settings", "close_opportunity_after_days") or 15
 
 	table = frappe.qb.DocType("Opportunity")
 	opportunities = (
